@@ -9,8 +9,10 @@ un LLM o un humano, y la máquina solo valida que ese veredicto exista y tenga e
 
 1. **Sintaxis** — corre el parser real de Mermaid (vía Chromium headless) sobre el `.mmd`. Si no
    parsea, falla con el error real del parser.
-2. **Estructura** — extrae el AST del diagrama (nodos, relaciones) y lo compara contra un contrato:
-   tipo de diagrama, cantidad de nodos, nodos y relaciones obligatorias.
+2. **Estructura** — extrae el AST del diagrama y lo compara contra un contrato. Para diagramas de
+   grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph) son
+   nodos y relaciones obligatorias. Para gantt/pie/journey, que no son grafos, el contrato usa un
+   esquema propio (ver "Tipos de diagrama soportados" abajo).
 3. **Semántica (opcional)** — si el contrato declara `semantic_checks`, exige un veredicto externo
    (de un LLM) que confirme o refute cada afirmación. El gate no juzga esto por sí mismo.
 
@@ -41,6 +43,12 @@ node src/gate.js examples/ok.mmd examples/ok.contract.yaml
 
 ## El contrato (`.contract.yaml`)
 
+`diagram_type` es el único campo obligatorio siempre. El resto de los campos depende de si el tipo
+es un grafo o uno de los tres tipos "planos" (gantt/pie/journey). `semantic_checks` aplica a
+cualquier tipo por igual. Un contrato sin reglas estructurales solo valida sintaxis + tipo.
+
+### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph)
+
 ```yaml
 diagram_type: flowchart      # tipo esperado (ver "Tipos soportados" abajo)
 
@@ -63,8 +71,58 @@ semantic_checks:              # opcional, ver "Capa semántica" abajo
   - "el diagrama maneja explicitamente un camino de error, no solo el camino feliz"
 ```
 
-Todos los campos son opcionales salvo `diagram_type`. Un contrato vacío de reglas estructurales
-solo valida sintaxis + tipo de diagrama.
+### gantt
+
+```yaml
+diagram_type: gantt
+
+min_tasks: 4                  # opcional
+max_tasks: 8                  # opcional
+
+required_sections:            # opcional
+  - Diseno
+  - Dev
+
+required_tasks:               # opcional, matchea por id de la task (":a1" en la sintaxis mermaid)
+  - id: a1
+    section: Diseno           # opcional
+    start: "2026-01-01"       # opcional, formato YYYY-MM-DD
+    end: "2026-01-06"         # opcional, formato YYYY-MM-DD
+```
+
+### pie
+
+```yaml
+diagram_type: pie
+
+min_slices: 2                 # opcional
+max_slices: 5                 # opcional
+
+required_slices:              # opcional
+  - label: A
+    value: 40                 # opcional: si se omite, solo se exige que la slice exista
+```
+
+### journey
+
+```yaml
+diagram_type: journey
+
+min_tasks: 2                  # opcional
+max_tasks: 6                  # opcional
+
+required_sections:            # opcional
+  - Buscar
+required_actors:              # opcional
+  - Cliente
+
+required_tasks:               # opcional, matchea por texto exacto de la task
+  - task: "Buscar producto"
+    section: Buscar           # opcional
+    score: 5                  # opcional
+    people:                   # opcional: subset — exige que esten estas personas, no un match exacto
+      - Cliente
+```
 
 ## Tipos de diagrama soportados
 
@@ -77,11 +135,12 @@ solo valida sintaxis + tipo de diagrama.
 | `erDiagram` | `er` |
 | `mindmap` | `mindmap` |
 | `gitGraph` | `gitGraph` |
+| `gantt` | `gantt` |
+| `pie` | `pie` |
+| `journey` | `journey` |
 
-Cualquier otro tipo (`gantt`, `pie`, `journey`, etc.) todavía no tiene extractor: el gate falla con
-`tipo de diagrama '<tipo>' aun no soportado por el gate`. Esos tres en particular no encajan en el
-esquema nodos/edges tal cual está (son barras/porcentajes/tareas con fechas, no grafos), así que
-necesitan una extensión del contrato antes de poder agregarse.
+Cualquier otro tipo (`requirementDiagram`, `C4Context`, `quadrantChart`, `sankey`, etc.) todavía no
+tiene extractor: el gate falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
 
 ### Notas por tipo (comportamiento real verificado, no documentación oficial de Mermaid)
 
@@ -99,15 +158,26 @@ necesitan una extensión del contrato antes de poder agregarse.
   extractor genera un edge `padre -> commit` por cada parent. Un `merge` sin id explícito
   (`merge <branch> id: "..."`) genera un id con hash aleatorio, distinto en cada parseo — para que
   el contrato sea reproducible hay que forzar el id del merge a mano.
+- **gantt**: `startTime`/`endTime` en `getTasks()` son objetos `Date` reales (calculados incluso
+  para tasks declaradas como `after <otra-task>`); el extractor los serializa a `YYYY-MM-DD`.
+- **pie**: `getSections()` devuelve un `Map` (label → valor), no un objeto plano — hay que
+  convertirlo con `Array.from(map.entries())` antes de poder iterarlo.
 
 ### Agregar un tipo nuevo
 
 En `src/gate.js`, sumar una entrada al objeto `EXTRACTORS` que reciba el `db` de mermaid para ese
-tipo y devuelva `{ nodes: [{id, label}], edges: [{from, to, label}] }`. Para saber qué expone el
-`db` de un tipo nuevo, no hay que adivinar: escribir un script temporal que llame
-`mermaid.mermaidAPI.getDiagramFromText(texto)` dentro de una página de Puppeteer y loguear
-`diagram.type` + los métodos del prototipo de `diagram.db` (es como se descubrieron todos los
-extractores actuales).
+tipo. Si el tipo es un grafo, devolver `{ nodes: [{id, label}], edges: [{from, to, label}] }` y
+sumar su validación al branch por defecto de `validate()`. Si no es un grafo (como gantt/pie/journey),
+devolver un objeto con un campo `kind` propio (ej. `{ kind: 'gantt', tasks, sections }`) y escribir
+una función `validateX()` nueva + un branch en `validate()` que la despache por `extracted.kind`.
+
+Para saber qué expone el `db` de un tipo nuevo, no hay que adivinar: escribir un script temporal
+que llame `mermaid.mermaidAPI.getDiagramFromText(texto)` dentro de una página de Puppeteer y loguear
+`diagram.type` + los métodos propios de `diagram.db` (`Object.getOwnPropertyNames(db)` — en varios
+tipos los métodos son propiedades propias del objeto, no del prototipo, así que hay que chequear
+ambos). Es como se descubrieron todos los extractores actuales, incluyendo los shapes inesperados
+(Maps que parecen `{}` al loguearlos directo, ids internos que no coinciden con los nombres visibles,
+etc.) — logueá el resultado real y armá el extractor a partir de eso, nunca de la documentación.
 
 ## Capa semántica (LLM-judge)
 
@@ -173,6 +243,9 @@ node src/gate.js examples/state-ok.mmd examples/state-ok.contract.yaml         #
 node src/gate.js examples/er-ok.mmd examples/er-ok.contract.yaml               # erDiagram, PASS
 node src/gate.js examples/mindmap-ok.mmd examples/mindmap-ok.contract.yaml     # mindmap, PASS
 node src/gate.js examples/gitgraph-ok.mmd examples/gitgraph-ok.contract.yaml   # gitGraph, PASS
+node src/gate.js examples/gantt-ok.mmd examples/gantt-ok.contract.yaml         # gantt, PASS
+node src/gate.js examples/pie-ok.mmd examples/pie-ok.contract.yaml             # pie, PASS
+node src/gate.js examples/journey-ok.mmd examples/journey-ok.contract.yaml     # journey, PASS
 node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml examples/semantic-verdicts-pass.json  # PASS
 ```
 

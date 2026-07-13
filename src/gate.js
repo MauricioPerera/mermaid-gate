@@ -92,6 +92,35 @@ const EXTRACTORS_SOURCE = `
         .map((m) => ({ from: m.from, to: m.to, label: m.message || null }));
       return { nodes, edges };
     },
+    // Estos tres no son grafos (sin nodos/edges): devuelven un shape propio, distinto del
+    // {nodes, edges} de arriba. validate() los distingue por kind.
+    'gantt': (db) => {
+      const tasks = db.getTasks().map((t) => ({
+        id: t.id,
+        label: (t.task || '').trim(),
+        section: t.section,
+        // startTime/endTime son Date reales; se serializan a YYYY-MM-DD para que el contrato
+        // los pueda declarar como string simple.
+        start: t.startTime instanceof Date ? t.startTime.toISOString().slice(0, 10) : null,
+        end: t.endTime instanceof Date ? t.endTime.toISOString().slice(0, 10) : null,
+      }));
+      return { kind: 'gantt', tasks, sections: db.getSections() };
+    },
+    'pie': (db) => {
+      // getSections() devuelve un Map (label -> valor), no un objeto plano.
+      const sections = db.getSections();
+      const slices = Array.from(sections.entries()).map(([label, value]) => ({ label, value }));
+      return { kind: 'pie', slices };
+    },
+    'journey': (db) => {
+      const tasks = db.getTasks().map((t) => ({
+        section: t.section,
+        task: t.task,
+        score: t.score,
+        people: t.people || [],
+      }));
+      return { kind: 'journey', tasks, sections: db.getSections(), actors: db.getActors() };
+    },
   };
 `;
 
@@ -115,36 +144,24 @@ async function extractDiagram(diagramText) {
       if (!extractor) {
         return { unsupportedType: diagram.type };
       }
-      const { nodes, edges } = extractor(diagram.db);
-      return { diagramType: diagram.type, nodes, edges };
+      return { diagramType: diagram.type, ...extractor(diagram.db) };
     }, diagramText);
   } finally {
     await browser.close();
   }
 }
 
-function validate(extracted, contract) {
+const TYPE_ALIASES = {
+  flowchart: 'flowchart-v2',
+  sequenceDiagram: 'sequence',
+  classDiagram: 'class',
+  stateDiagram: 'stateDiagram',
+  'stateDiagram-v2': 'stateDiagram',
+  erDiagram: 'er',
+};
+
+function validateGraph(extracted, contract) {
   const violations = [];
-
-  if (extracted.syntaxError) {
-    return [`sintaxis invalida: ${extracted.syntaxError}`];
-  }
-  if (extracted.unsupportedType) {
-    return [`tipo de diagrama '${extracted.unsupportedType}' aun no soportado por el gate`];
-  }
-
-  const typeAliases = {
-    flowchart: 'flowchart-v2',
-    sequenceDiagram: 'sequence',
-    classDiagram: 'class',
-    stateDiagram: 'stateDiagram',
-    'stateDiagram-v2': 'stateDiagram',
-    erDiagram: 'er',
-  };
-  const expectedType = typeAliases[contract.diagram_type] || contract.diagram_type;
-  if (expectedType && extracted.diagramType !== expectedType) {
-    violations.push(`diagram_type esperado '${contract.diagram_type}', encontrado '${extracted.diagramType}'`);
-  }
 
   if (typeof contract.min_nodes === 'number' && extracted.nodes.length < contract.min_nodes) {
     violations.push(`min_nodes ${contract.min_nodes}, encontrado ${extracted.nodes.length}`);
@@ -178,6 +195,131 @@ function validate(extracted, contract) {
   }
 
   return violations;
+}
+
+function validateGantt(extracted, contract) {
+  const violations = [];
+  const { tasks, sections } = extracted;
+
+  if (typeof contract.min_tasks === 'number' && tasks.length < contract.min_tasks) {
+    violations.push(`min_tasks ${contract.min_tasks}, encontrado ${tasks.length}`);
+  }
+  if (typeof contract.max_tasks === 'number' && tasks.length > contract.max_tasks) {
+    violations.push(`max_tasks ${contract.max_tasks}, encontrado ${tasks.length}`);
+  }
+
+  for (const s of contract.required_sections || []) {
+    if (!sections.includes(s)) violations.push(`falta section requerida '${s}'`);
+  }
+
+  const tasksById = new Map(tasks.map((t) => [t.id, t]));
+  for (const req of contract.required_tasks || []) {
+    const found = tasksById.get(req.id);
+    if (!found) {
+      violations.push(`falta task requerida '${req.id}'`);
+      continue;
+    }
+    if (req.section && found.section !== req.section) {
+      violations.push(`task '${req.id}' esperaba section '${req.section}', encontrado '${found.section}'`);
+    }
+    if (req.start && found.start !== req.start) {
+      violations.push(`task '${req.id}' esperaba start '${req.start}', encontrado '${found.start}'`);
+    }
+    if (req.end && found.end !== req.end) {
+      violations.push(`task '${req.id}' esperaba end '${req.end}', encontrado '${found.end}'`);
+    }
+  }
+
+  return violations;
+}
+
+function validatePie(extracted, contract) {
+  const violations = [];
+  const { slices } = extracted;
+
+  if (typeof contract.min_slices === 'number' && slices.length < contract.min_slices) {
+    violations.push(`min_slices ${contract.min_slices}, encontrado ${slices.length}`);
+  }
+  if (typeof contract.max_slices === 'number' && slices.length > contract.max_slices) {
+    violations.push(`max_slices ${contract.max_slices}, encontrado ${slices.length}`);
+  }
+
+  const sliceByLabel = new Map(slices.map((s) => [s.label, s]));
+  for (const req of contract.required_slices || []) {
+    const found = sliceByLabel.get(req.label);
+    if (!found) {
+      violations.push(`falta slice requerida '${req.label}'`);
+      continue;
+    }
+    if (typeof req.value === 'number' && found.value !== req.value) {
+      violations.push(`slice '${req.label}' esperaba value ${req.value}, encontrado ${found.value}`);
+    }
+  }
+
+  return violations;
+}
+
+function validateJourney(extracted, contract) {
+  const violations = [];
+  const { tasks, sections, actors } = extracted;
+
+  if (typeof contract.min_tasks === 'number' && tasks.length < contract.min_tasks) {
+    violations.push(`min_tasks ${contract.min_tasks}, encontrado ${tasks.length}`);
+  }
+  if (typeof contract.max_tasks === 'number' && tasks.length > contract.max_tasks) {
+    violations.push(`max_tasks ${contract.max_tasks}, encontrado ${tasks.length}`);
+  }
+
+  for (const s of contract.required_sections || []) {
+    if (!sections.includes(s)) violations.push(`falta section requerida '${s}'`);
+  }
+  for (const a of contract.required_actors || []) {
+    if (!actors.includes(a)) violations.push(`falta actor requerido '${a}'`);
+  }
+
+  for (const req of contract.required_tasks || []) {
+    const found = tasks.find((t) => t.task === req.task);
+    if (!found) {
+      violations.push(`falta task requerida '${req.task}'`);
+      continue;
+    }
+    if (req.section && found.section !== req.section) {
+      violations.push(`task '${req.task}' esperaba section '${req.section}', encontrado '${found.section}'`);
+    }
+    if (typeof req.score === 'number' && found.score !== req.score) {
+      violations.push(`task '${req.task}' esperaba score ${req.score}, encontrado ${found.score}`);
+    }
+    // people: se exige que esten todas las personas listadas (subset), no un match exacto de la lista.
+    for (const p of req.people || []) {
+      if (!found.people.includes(p)) {
+        violations.push(`task '${req.task}' esperaba incluir a '${p}', encontrado [${found.people.join(', ')}]`);
+      }
+    }
+  }
+
+  return violations;
+}
+
+function validate(extracted, contract) {
+  if (extracted.syntaxError) {
+    return [`sintaxis invalida: ${extracted.syntaxError}`];
+  }
+  if (extracted.unsupportedType) {
+    return [`tipo de diagrama '${extracted.unsupportedType}' aun no soportado por el gate`];
+  }
+
+  const violations = [];
+
+  const expectedType = TYPE_ALIASES[contract.diagram_type] || contract.diagram_type;
+  if (expectedType && extracted.diagramType !== expectedType) {
+    violations.push(`diagram_type esperado '${contract.diagram_type}', encontrado '${extracted.diagramType}'`);
+    return violations;
+  }
+
+  if (extracted.kind === 'gantt') return [...violations, ...validateGantt(extracted, contract)];
+  if (extracted.kind === 'pie') return [...violations, ...validatePie(extracted, contract)];
+  if (extracted.kind === 'journey') return [...violations, ...validateJourney(extracted, contract)];
+  return [...violations, ...validateGraph(extracted, contract)];
 }
 
 function buildJudgeTask(diagramText, contract) {
