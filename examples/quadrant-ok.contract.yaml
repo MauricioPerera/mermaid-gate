@@ -1,0 +1,19 @@
+# Nota: el cuadrante de cada punto se infiere por geometria de pixeles (ver README), no por AST
+# semantico. Feature A: [0.3, 0.7] -> x bajo, y alto -> cuadrante "Planificar" (quadrant-2, arriba-izq).
+# Feature B: [0.8, 0.2] -> x alto, y bajo -> cuadrante "Delegar" (quadrant-4, abajo-der).
+diagram_type: quadrantChart
+
+min_points: 2
+max_points: 5
+
+required_quadrants:
+  - Hacer ya
+  - Planificar
+  - Descartar
+  - Delegar
+
+required_points:
+  - name: "Feature A"
+    quadrant: Planificar
+  - name: "Feature B"
+    quadrant: Delegar

@@ -96,6 +96,26 @@ const EXTRACTORS_SOURCE = `
       const edges = db.getRels().map((r) => ({ from: r.from, to: r.to, label: r.label.text || null }));
       return { nodes, edges };
     },
+    // getQuadrantData() no expone AST semantico: solo geometria de render ya calculada
+    // (coordenadas en pixeles). No hay forma limpia de saber en que cuadrante cae cada punto
+    // por nombre, asi que se infiere comparando el pixel del punto contra la caja (bbox en
+    // pixeles) de cada cuadrante. FRAGIL: si una version futura de mermaid cambia el layout/canvas
+    // por defecto, esto se puede romper sin que el diagrama haya cambiado.
+    'quadrantChart': (db) => {
+      const data = db.getQuadrantData();
+      const points = data.points.map((p) => {
+        const q = data.quadrants.find(
+          (qb) => p.x >= qb.x && p.x <= qb.x + qb.width && p.y >= qb.y && p.y <= qb.y + qb.height
+        );
+        return { name: p.text.text, quadrant: q ? q.text.text : null };
+      });
+      return { kind: 'quadrant', points, quadrants: data.quadrants.map((q) => q.text.text) };
+    },
+    'sankey': (db) => {
+      const nodes = db.getNodes().map((n) => ({ id: n.ID, label: n.ID }));
+      const edges = db.getLinks().map((l) => ({ from: l.source.ID, to: l.target.ID, label: String(l.value) }));
+      return { nodes, edges };
+    },
     'sequence': (db) => {
       const actors = db.getActors();
       const nodes = Array.from(actors.entries()).map(([id, a]) => ({ id, label: a.description }));
@@ -316,6 +336,35 @@ function validateJourney(extracted, contract) {
   return violations;
 }
 
+function validateQuadrant(extracted, contract) {
+  const violations = [];
+  const { points, quadrants } = extracted;
+
+  if (typeof contract.min_points === 'number' && points.length < contract.min_points) {
+    violations.push(`min_points ${contract.min_points}, encontrado ${points.length}`);
+  }
+  if (typeof contract.max_points === 'number' && points.length > contract.max_points) {
+    violations.push(`max_points ${contract.max_points}, encontrado ${points.length}`);
+  }
+
+  for (const q of contract.required_quadrants || []) {
+    if (!quadrants.includes(q)) violations.push(`falta cuadrante requerido '${q}'`);
+  }
+
+  for (const req of contract.required_points || []) {
+    const found = points.find((p) => p.name === req.name);
+    if (!found) {
+      violations.push(`falta punto requerido '${req.name}'`);
+      continue;
+    }
+    if (req.quadrant && found.quadrant !== req.quadrant) {
+      violations.push(`punto '${req.name}' esperaba cuadrante '${req.quadrant}', encontrado '${found.quadrant}'`);
+    }
+  }
+
+  return violations;
+}
+
 function validate(extracted, contract) {
   if (extracted.syntaxError) {
     return [`sintaxis invalida: ${extracted.syntaxError}`];
@@ -335,6 +384,7 @@ function validate(extracted, contract) {
   if (extracted.kind === 'gantt') return [...violations, ...validateGantt(extracted, contract)];
   if (extracted.kind === 'pie') return [...violations, ...validatePie(extracted, contract)];
   if (extracted.kind === 'journey') return [...violations, ...validateJourney(extracted, contract)];
+  if (extracted.kind === 'quadrant') return [...violations, ...validateQuadrant(extracted, contract)];
   return [...violations, ...validateGraph(extracted, contract)];
 }
 

@@ -47,7 +47,7 @@ node src/gate.js examples/ok.mmd examples/ok.contract.yaml
 es un grafo o uno de los tres tipos "planos" (gantt/pie/journey). `semantic_checks` aplica a
 cualquier tipo por igual. Un contrato sin reglas estructurales solo valida sintaxis + tipo.
 
-### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph)
+### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph, requirementDiagram, C4Context, sankey)
 
 ```yaml
 diagram_type: flowchart      # tipo esperado (ver "Tipos soportados" abajo)
@@ -124,6 +124,23 @@ required_tasks:               # opcional, matchea por texto exacto de la task
       - Cliente
 ```
 
+### quadrantChart
+
+```yaml
+diagram_type: quadrantChart
+
+min_points: 2                 # opcional
+max_points: 5                 # opcional
+
+required_quadrants:           # opcional
+  - Hacer ya
+  - Planificar
+
+required_points:              # opcional, matchea por nombre exacto del punto
+  - name: "Feature A"
+    quadrant: Planificar      # opcional: si se omite, solo se exige que el punto exista
+```
+
 ## Tipos de diagrama soportados
 
 | `diagram_type` en el contrato | Tipo interno de Mermaid |
@@ -140,9 +157,11 @@ required_tasks:               # opcional, matchea por texto exacto de la task
 | `journey` | `journey` |
 | `requirementDiagram` | `requirement` |
 | `C4Context` | `c4` |
+| `sankey` | `sankey` |
+| `quadrantChart` | `quadrantChart` |
 
-Cualquier otro tipo (`quadrantChart`, `sankey`, `timeline`, `block`, etc.) todavía no tiene
-extractor: el gate falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
+Cualquier otro tipo (`timeline`, `block`, `xychart`, etc.) todavía no tiene extractor: el gate
+falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
 
 ### Notas por tipo (comportamiento real verificado, no documentación oficial de Mermaid)
 
@@ -169,6 +188,14 @@ extractor: el gate falla con `tipo de diagrama '<tipo>' aun no soportado por el 
   en vez de `from`/`to`.
 - **C4Context**: `label`, `descr` y `techn` en shapes/rels no son strings sino objetos `{text: "..."}`
   — hay que extraer `.text`, no asumir que el campo ya es el string.
+- **sankey**: `getNodes()`/`getLinks()` son la excepción prolija — nodos con `{ID}` y links con
+  `{source: {ID}, target: {ID}, value}`, sin gotchas.
+- **quadrantChart (⚠ frágil)**: `getQuadrantData()` NO expone AST semántico — solo geometría de
+  render ya calculada (coordenadas en píxeles, cajas de cuadrante). No hay forma de saber en qué
+  cuadrante cae un punto por nombre directamente; el extractor lo infiere comparando el pixel del
+  punto contra el bounding box de cada cuadrante. Si una versión futura de mermaid cambia el
+  layout/canvas por defecto, esto puede romperse sin que el diagrama haya cambiado. Es el único
+  extractor de todo el proyecto que depende de datos de render en vez de datos de parseo.
 
 ### Agregar un tipo nuevo
 
@@ -255,6 +282,8 @@ node src/gate.js examples/pie-ok.mmd examples/pie-ok.contract.yaml             #
 node src/gate.js examples/journey-ok.mmd examples/journey-ok.contract.yaml     # journey, PASS
 node src/gate.js examples/requirement-ok.mmd examples/requirement-ok.contract.yaml  # requirementDiagram, PASS
 node src/gate.js examples/c4-ok.mmd examples/c4-ok.contract.yaml               # C4Context, PASS
+node src/gate.js examples/sankey-ok.mmd examples/sankey-ok.contract.yaml       # sankey, PASS
+node src/gate.js examples/quadrant-ok.mmd examples/quadrant-ok.contract.yaml   # quadrantChart, PASS
 node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml examples/semantic-verdicts-pass.json  # PASS
 ```
 

@@ -1,0 +1,15 @@
+diagram_type: sankey
+
+min_nodes: 3
+max_nodes: 6
+
+required_nodes:
+  - id: A
+  - id: B
+
+required_edges:
+  - from: A
+    to: B
+    label: "10"
+  - from: B
+    to: D
