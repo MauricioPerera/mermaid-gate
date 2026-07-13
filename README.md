@@ -47,7 +47,7 @@ node src/gate.js examples/ok.mmd examples/ok.contract.yaml
 es un grafo o uno de los tres tipos "planos" (gantt/pie/journey). `semantic_checks` aplica a
 cualquier tipo por igual. Un contrato sin reglas estructurales solo valida sintaxis + tipo.
 
-### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph, requirementDiagram, C4Context, sankey)
+### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph, requirementDiagram, C4Context, sankey, block)
 
 ```yaml
 diagram_type: flowchart      # tipo esperado (ver "Tipos soportados" abajo)
@@ -141,6 +141,36 @@ required_points:              # opcional, matchea por nombre exacto del punto
     quadrant: Planificar      # opcional: si se omite, solo se exige que el punto exista
 ```
 
+### timeline
+
+```yaml
+diagram_type: timeline
+
+min_periods: 2                # opcional
+max_periods: 5                # opcional
+
+required_periods:             # opcional, matchea por texto exacto del periodo
+  - period: "2020"
+    events:                   # opcional: subset — exige que esten estos eventos, no un match exacto
+      - Fundacion
+```
+
+### xychart
+
+```yaml
+diagram_type: xychart
+
+required_categories:          # opcional
+  - ene
+  - feb
+
+required_plots:               # opcional, matchea por type ('bar' o 'line')
+  - type: bar
+    points:                   # opcional
+      - category: ene
+        value: 500            # opcional: si se omite, solo se exige que exista un punto para esa categoria
+```
+
 ## Tipos de diagrama soportados
 
 | `diagram_type` en el contrato | Tipo interno de Mermaid |
@@ -159,9 +189,12 @@ required_points:              # opcional, matchea por nombre exacto del punto
 | `C4Context` | `c4` |
 | `sankey` | `sankey` |
 | `quadrantChart` | `quadrantChart` |
+| `block` | `block` |
+| `timeline` | `timeline` |
+| `xychart` | `xychart` |
 
-Cualquier otro tipo (`timeline`, `block`, `xychart`, etc.) todavía no tiene extractor: el gate
-falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
+Cualquier otro tipo (`kanban`, `packet`, `radar`, etc.) todavía no tiene extractor: el gate falla
+con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
 
 ### Notas por tipo (comportamiento real verificado, no documentación oficial de Mermaid)
 
@@ -196,6 +229,14 @@ falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
   punto contra el bounding box de cada cuadrante. Si una versión futura de mermaid cambia el
   layout/canvas por defecto, esto puede romperse sin que el diagrama haya cambiado. Es el único
   extractor de todo el proyecto que depende de datos de render en vez de datos de parseo.
+- **block**: excepción prolija — `getBlocks()`/`getEdges()` ya vienen en el shape que se necesita,
+  sin lookups ni colecciones que combinar.
+- **timeline**: el texto de cada evento conserva el espacio previo al `:` del parseo original
+  (`"Primera ronda "`, con espacio final) — el extractor los trimea. Los periodos no tienen
+  relaciones entre sí, por eso es `{kind: 'timeline', periods}` y no `{nodes, edges}`.
+- **xychart**: cada serie (`bar`/`line`) se identifica por su `type`, no por un id — si un contrato
+  necesitara dos series `bar` distinguibles, `required_plots` no alcanza (matchea la primera con
+  ese type).
 
 ### Agregar un tipo nuevo
 
@@ -284,6 +325,9 @@ node src/gate.js examples/requirement-ok.mmd examples/requirement-ok.contract.ya
 node src/gate.js examples/c4-ok.mmd examples/c4-ok.contract.yaml               # C4Context, PASS
 node src/gate.js examples/sankey-ok.mmd examples/sankey-ok.contract.yaml       # sankey, PASS
 node src/gate.js examples/quadrant-ok.mmd examples/quadrant-ok.contract.yaml   # quadrantChart, PASS
+node src/gate.js examples/block-ok.mmd examples/block-ok.contract.yaml         # block, PASS
+node src/gate.js examples/timeline-ok.mmd examples/timeline-ok.contract.yaml   # timeline, PASS
+node src/gate.js examples/xychart-ok.mmd examples/xychart-ok.contract.yaml     # xychart, PASS
 node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml examples/semantic-verdicts-pass.json  # PASS
 ```
 

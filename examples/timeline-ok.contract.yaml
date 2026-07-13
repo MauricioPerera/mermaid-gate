@@ -1,0 +1,13 @@
+diagram_type: timeline
+
+min_periods: 2
+max_periods: 5
+
+required_periods:
+  - period: "2020"
+    events:
+      - Fundacion
+  - period: "2021"
+    events:
+      - "Primera ronda"
+      - "Contratacion equipo"

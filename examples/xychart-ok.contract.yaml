@@ -1,0 +1,18 @@
+diagram_type: xychart
+
+required_categories:
+  - ene
+  - feb
+  - mar
+
+required_plots:
+  - type: bar
+    points:
+      - category: ene
+        value: 500
+      - category: feb
+        value: 700
+  - type: line
+    points:
+      - category: mar
+        value: 300

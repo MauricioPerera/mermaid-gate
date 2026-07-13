@@ -111,10 +111,32 @@ const EXTRACTORS_SOURCE = `
       });
       return { kind: 'quadrant', points, quadrants: data.quadrants.map((q) => q.text.text) };
     },
+    'block': (db) => {
+      const nodes = db.getBlocks().map((b) => ({ id: b.id, label: b.label || b.id }));
+      const edges = db.getEdges().map((e) => ({ from: e.start, to: e.end, label: e.label || null }));
+      return { nodes, edges };
+    },
     'sankey': (db) => {
       const nodes = db.getNodes().map((n) => ({ id: n.ID, label: n.ID }));
       const edges = db.getLinks().map((l) => ({ from: l.source.ID, to: l.target.ID, label: String(l.value) }));
       return { nodes, edges };
+    },
+    'timeline': (db) => {
+      // cada task es un periodo (ej "2020"), con una lista de eventos de texto libre. No hay
+      // relaciones entre periodos, asi que no es {nodes, edges}.
+      const periods = db.getTasks().map((t) => ({
+        period: (t.task || '').trim(),
+        events: (t.events || []).map((e) => e.trim()),
+      }));
+      return { kind: 'timeline', periods };
+    },
+    'xychart': (db) => {
+      const data = db.getXYChartData();
+      const plots = data.plots.map((p) => ({
+        type: p.type,
+        points: p.data.map(([category, value]) => ({ category, value })),
+      }));
+      return { kind: 'xychart', categories: data.xAxis.categories || [], plots };
     },
     'sequence': (db) => {
       const actors = db.getActors();
@@ -365,6 +387,63 @@ function validateQuadrant(extracted, contract) {
   return violations;
 }
 
+function validateTimeline(extracted, contract) {
+  const violations = [];
+  const { periods } = extracted;
+
+  if (typeof contract.min_periods === 'number' && periods.length < contract.min_periods) {
+    violations.push(`min_periods ${contract.min_periods}, encontrado ${periods.length}`);
+  }
+  if (typeof contract.max_periods === 'number' && periods.length > contract.max_periods) {
+    violations.push(`max_periods ${contract.max_periods}, encontrado ${periods.length}`);
+  }
+
+  for (const req of contract.required_periods || []) {
+    const found = periods.find((p) => p.period === req.period);
+    if (!found) {
+      violations.push(`falta periodo requerido '${req.period}'`);
+      continue;
+    }
+    // events: subset — exige que esten estos eventos, no un match exacto de la lista.
+    for (const e of req.events || []) {
+      if (!found.events.includes(e)) {
+        violations.push(`periodo '${req.period}' esperaba incluir el evento '${e}', encontrado [${found.events.join(', ')}]`);
+      }
+    }
+  }
+
+  return violations;
+}
+
+function validateXychart(extracted, contract) {
+  const violations = [];
+  const { categories, plots } = extracted;
+
+  for (const c of contract.required_categories || []) {
+    if (!categories.includes(c)) violations.push(`falta categoria requerida '${c}'`);
+  }
+
+  for (const req of contract.required_plots || []) {
+    const found = plots.find((p) => p.type === req.type);
+    if (!found) {
+      violations.push(`falta plot requerido de type '${req.type}'`);
+      continue;
+    }
+    for (const reqPoint of req.points || []) {
+      const point = found.points.find((p) => p.category === reqPoint.category);
+      if (!point) {
+        violations.push(`plot '${req.type}' no tiene un punto para la categoria '${reqPoint.category}'`);
+      } else if (typeof reqPoint.value === 'number' && point.value !== reqPoint.value) {
+        violations.push(
+          `plot '${req.type}', categoria '${reqPoint.category}' esperaba value ${reqPoint.value}, encontrado ${point.value}`
+        );
+      }
+    }
+  }
+
+  return violations;
+}
+
 function validate(extracted, contract) {
   if (extracted.syntaxError) {
     return [`sintaxis invalida: ${extracted.syntaxError}`];
@@ -385,6 +464,8 @@ function validate(extracted, contract) {
   if (extracted.kind === 'pie') return [...violations, ...validatePie(extracted, contract)];
   if (extracted.kind === 'journey') return [...violations, ...validateJourney(extracted, contract)];
   if (extracted.kind === 'quadrant') return [...violations, ...validateQuadrant(extracted, contract)];
+  if (extracted.kind === 'timeline') return [...violations, ...validateTimeline(extracted, contract)];
+  if (extracted.kind === 'xychart') return [...violations, ...validateXychart(extracted, contract)];
   return [...violations, ...validateGraph(extracted, contract)];
 }
 

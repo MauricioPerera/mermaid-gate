@@ -1,0 +1,18 @@
+diagram_type: block
+
+min_nodes: 3
+max_nodes: 6
+
+required_nodes:
+  - id: a
+    label: Frontend
+  - id: b
+    label: Backend
+  - id: c
+    label: DB
+
+required_edges:
+  - from: a
+    to: b
+  - from: b
+    to: c
