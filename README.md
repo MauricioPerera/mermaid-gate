@@ -381,3 +381,20 @@ node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml e
 src/gate.js       # todo el gate: extracción de AST, validación estructural, subcomando judge
 examples/         # fixtures .mmd + .contract.yaml + veredictos de ejemplo
 ```
+
+## Integración con KDD
+
+[MauricioPerera/KDD](https://github.com/MauricioPerera/KDD) — plantilla de metodología
+Knowledge-Driven Development (OKF + CCDD) — tiene su propio gate de diagramas Mermaid en
+[`scripts/validate_diagrams.py`](https://github.com/MauricioPerera/KDD/blob/main/scripts/validate_diagrams.py),
+documentado en [`knowledge/diagram-contract-spec.md`](https://github.com/MauricioPerera/KDD/blob/main/knowledge/diagram-contract-spec.md).
+
+No invoca este proyecto: los gates Nivel 1 de KDD prohíben `subprocess`/`network`/`llm`, así que
+no pueden shellear a `node src/gate.js` (eso necesitaría Node.js + subprocess). En cambio,
+KDD reimplementa parsers propios en Python puro para un subconjunto de 4 tipos
+(`flowchart`, `gantt`, `pie`, `journey`), con un contrato JSON equivalente (mismo vocabulario,
+JSON en vez de YAML) pero de fidelidad y cobertura menor que este proyecto.
+
+Este repo (`mermaid-gate`) es la herramienta de referencia cuando se necesita el parser real de
+mermaid o alguno de los 16 tipos que KDD no cubre — se usa como herramienta externa, invocada a
+mano o desde CI de un proyecto que sí pueda correr Node.js, no como parte del gate Nivel 1 de KDD.
