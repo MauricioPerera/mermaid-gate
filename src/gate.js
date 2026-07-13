@@ -206,7 +206,10 @@ const EXTRACTORS_SOURCE = `
 `;
 
 async function extractDiagram(diagramText) {
-  const browser = await puppeteer.launch();
+  // --no-sandbox: necesario en runners de CI (Ubuntu 23.10+/24.04 restringe user namespaces
+  // sin privilegios, Chromium no puede levantar su sandbox setuid ahi). Sin riesgo real aca:
+  // solo se carga about:blank + texto local inyectado, nunca contenido remoto no confiable.
+  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   try {
     const page = await browser.newPage();
     await page.goto('about:blank');
