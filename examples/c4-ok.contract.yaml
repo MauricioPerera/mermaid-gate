@@ -1,0 +1,15 @@
+diagram_type: C4Context
+
+min_nodes: 2
+max_nodes: 5
+
+required_nodes:
+  - id: customer
+    label: Cliente
+  - id: app
+    label: App
+
+required_edges:
+  - from: customer
+    to: app
+    label: usa

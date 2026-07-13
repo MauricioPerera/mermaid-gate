@@ -1,0 +1,11 @@
+requirementDiagram
+    requirement req1 {
+      id: 1
+      text: el sistema debe autenticar usuarios
+      risk: high
+      verifymethod: test
+    }
+    element sistema {
+      type: simulation
+    }
+    sistema - satisfies -> req1

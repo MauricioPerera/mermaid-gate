@@ -138,9 +138,11 @@ required_tasks:               # opcional, matchea por texto exacto de la task
 | `gantt` | `gantt` |
 | `pie` | `pie` |
 | `journey` | `journey` |
+| `requirementDiagram` | `requirement` |
+| `C4Context` | `c4` |
 
-Cualquier otro tipo (`requirementDiagram`, `C4Context`, `quadrantChart`, `sankey`, etc.) todavía no
-tiene extractor: el gate falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
+Cualquier otro tipo (`quadrantChart`, `sankey`, `timeline`, `block`, etc.) todavía no tiene
+extractor: el gate falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
 
 ### Notas por tipo (comportamiento real verificado, no documentación oficial de Mermaid)
 
@@ -162,6 +164,11 @@ tiene extractor: el gate falla con `tipo de diagrama '<tipo>' aun no soportado p
   para tasks declaradas como `after <otra-task>`); el extractor los serializa a `YYYY-MM-DD`.
 - **pie**: `getSections()` devuelve un `Map` (label → valor), no un objeto plano — hay que
   convertirlo con `Array.from(map.entries())` antes de poder iterarlo.
+- **requirementDiagram**: los nodos salen de dos colecciones distintas (`getRequirements()` y
+  `getElements()`), que hay que combinar; las relaciones (`getRelationships()`) usan `src`/`dst`
+  en vez de `from`/`to`.
+- **C4Context**: `label`, `descr` y `techn` en shapes/rels no son strings sino objetos `{text: "..."}`
+  — hay que extraer `.text`, no asumir que el campo ya es el string.
 
 ### Agregar un tipo nuevo
 
@@ -246,6 +253,8 @@ node src/gate.js examples/gitgraph-ok.mmd examples/gitgraph-ok.contract.yaml   #
 node src/gate.js examples/gantt-ok.mmd examples/gantt-ok.contract.yaml         # gantt, PASS
 node src/gate.js examples/pie-ok.mmd examples/pie-ok.contract.yaml             # pie, PASS
 node src/gate.js examples/journey-ok.mmd examples/journey-ok.contract.yaml     # journey, PASS
+node src/gate.js examples/requirement-ok.mmd examples/requirement-ok.contract.yaml  # requirementDiagram, PASS
+node src/gate.js examples/c4-ok.mmd examples/c4-ok.contract.yaml               # C4Context, PASS
 node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml examples/semantic-verdicts-pass.json  # PASS
 ```
 

@@ -82,6 +82,20 @@ const EXTRACTORS_SOURCE = `
       }
       return { nodes, edges };
     },
+    'requirement': (db) => {
+      const requirements = db.getRequirements();
+      const elements = db.getElements();
+      // los nodos salen de dos colecciones distintas (requirements y elements), combinadas.
+      const reqNodes = Array.from(requirements.entries()).map(([id, r]) => ({ id, label: r.text }));
+      const elNodes = Array.from(elements.entries()).map(([id, e]) => ({ id, label: e.name }));
+      const edges = db.getRelationships().map((r) => ({ from: r.src, to: r.dst, label: r.type || null }));
+      return { nodes: [...reqNodes, ...elNodes], edges };
+    },
+    'c4': (db) => {
+      const nodes = db.getC4ShapeArray().map((s) => ({ id: s.alias, label: s.label.text }));
+      const edges = db.getRels().map((r) => ({ from: r.from, to: r.to, label: r.label.text || null }));
+      return { nodes, edges };
+    },
     'sequence': (db) => {
       const actors = db.getActors();
       const nodes = Array.from(actors.entries()).map(([id, a]) => ({ id, label: a.description }));
@@ -158,6 +172,8 @@ const TYPE_ALIASES = {
   stateDiagram: 'stateDiagram',
   'stateDiagram-v2': 'stateDiagram',
   erDiagram: 'er',
+  requirementDiagram: 'requirement',
+  C4Context: 'c4',
 };
 
 function validateGraph(extracted, contract) {

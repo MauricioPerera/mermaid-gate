@@ -1,0 +1,14 @@
+diagram_type: requirementDiagram
+
+min_nodes: 2
+max_nodes: 5
+
+required_nodes:
+  - id: req1
+    label: el sistema debe autenticar usuarios
+  - id: sistema
+
+required_edges:
+  - from: sistema
+    to: req1
+    label: satisfies
