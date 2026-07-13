@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "check": "el diagrama maneja explicitamente un camino de error o rechazo, no solo el camino feliz",
+      "pass": false,
+      "reason": "el camino 'No' lleva a 'Accion 2', que es una rama alternativa generica, no un error o rechazo explicito (no hay nodo de tipo error/fallo)"
+    },
+    {
+      "check": "los nombres de los nodos son descriptivos, no genericos como 'Paso 1'",
+      "pass": false,
+      "reason": "los nodos C y D se llaman 'Accion 1' y 'Accion 2', que son tan genericos como 'Paso 1'"
+    }
+  ]
+}

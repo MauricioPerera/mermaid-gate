@@ -1,0 +1,15 @@
+diagram_type: classDiagram
+
+min_nodes: 2
+max_nodes: 5
+
+required_nodes:
+  - id: Animal
+  - id: Dog
+
+required_edges:
+  - from: Animal
+    to: Dog
+  - from: Animal
+    to: Dog
+    label: owns

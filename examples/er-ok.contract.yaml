@@ -1,0 +1,13 @@
+diagram_type: erDiagram
+
+min_nodes: 2
+max_nodes: 5
+
+required_nodes:
+  - id: CUSTOMER
+  - id: ORDER
+
+required_edges:
+  - from: CUSTOMER
+    to: ORDER
+    label: places

@@ -1,0 +1,18 @@
+# Nota: los pseudo-estados [*] se materializan como nodos 'root_start'/'root_end'
+# en el AST de mermaid, por eso min_nodes cuenta tambien esos dos.
+diagram_type: stateDiagram-v2
+
+min_nodes: 4
+max_nodes: 8
+
+required_nodes:
+  - id: Idle
+  - id: Running
+
+required_edges:
+  - from: Idle
+    to: Running
+    label: start
+  - from: Running
+    to: Idle
+    label: stop

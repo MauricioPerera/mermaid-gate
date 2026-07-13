@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "check": "el diagrama maneja explicitamente un camino de error o rechazo, no solo el camino feliz",
+      "pass": true,
+      "reason": "el camino 'No' termina en 'Rechazar Solicitud', un nodo explicito de rechazo"
+    },
+    {
+      "check": "los nombres de los nodos son descriptivos, no genericos como 'Paso 1'",
+      "pass": true,
+      "reason": "'Validar Pago' y 'Rechazar Solicitud' describen la accion concreta, no son placeholders genericos"
+    }
+  ]
+}

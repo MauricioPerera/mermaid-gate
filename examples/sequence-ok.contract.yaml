@@ -1,0 +1,18 @@
+diagram_type: sequenceDiagram
+
+min_nodes: 2
+max_nodes: 5
+
+required_nodes:
+  - id: A
+    label: Cliente
+  - id: B
+    label: Servidor
+
+required_edges:
+  - from: A
+    to: B
+    label: Pedido
+  - from: B
+    to: A
+    label: Respuesta

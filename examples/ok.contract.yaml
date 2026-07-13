@@ -1,0 +1,17 @@
+diagram_type: flowchart
+
+min_nodes: 3
+max_nodes: 10
+
+required_nodes:
+  - id: A
+    label: Inicio
+  - id: B
+  - id: C
+
+required_edges:
+  - from: A
+    to: B
+  - from: B
+    to: C
+    label: Si
