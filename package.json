@@ -1,14 +1,14 @@
 {
-  "name": "mermaid",
+  "name": "mermaid-gate",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Gate determinista de diagramas Mermaid contra un contrato declarativo (YAML), con capa opcional de juicio semantico via LLM externo.",
+  "main": "src/gate.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node scripts/regression-test.js"
   },
-  "keywords": [],
+  "keywords": ["mermaid", "diagram", "gate", "ccdd"],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "js-yaml": "^5.2.1",
