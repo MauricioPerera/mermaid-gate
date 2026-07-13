@@ -1,0 +1,12 @@
+diagram_type: radar
+
+required_axes:
+  - Ataque
+  - Defensa
+  - Velocidad
+
+required_curves:
+  - label: "Jugador 1"
+    values:
+      Ataque: 85
+      Defensa: 60

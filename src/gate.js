@@ -111,6 +111,16 @@ const EXTRACTORS_SOURCE = `
       });
       return { kind: 'quadrant', points, quadrants: data.quadrants.map((q) => q.text.text) };
     },
+    'kanban': (db) => {
+      // getData() devuelve una lista plana de nodos (secciones + tareas) con parentId; el
+      // edge seccion -> tarea se reconstruye a partir de ese parentId, no viene ya armado.
+      const { nodes: rawNodes } = db.getData();
+      const nodes = rawNodes.map((n) => ({ id: n.id, label: n.label }));
+      const edges = rawNodes
+        .filter((n) => n.parentId)
+        .map((n) => ({ from: n.parentId, to: n.id, label: null }));
+      return { nodes, edges };
+    },
     'block': (db) => {
       const nodes = db.getBlocks().map((b) => ({ id: b.id, label: b.label || b.id }));
       const edges = db.getEdges().map((e) => ({ from: e.start, to: e.end, label: e.label || null }));
@@ -137,6 +147,21 @@ const EXTRACTORS_SOURCE = `
         points: p.data.map(([category, value]) => ({ category, value })),
       }));
       return { kind: 'xychart', categories: data.xAxis.categories || [], plots };
+    },
+    'packet': (db) => {
+      // getPacket() agrupa los campos en "filas" (arrays anidados) segun el ancho de bits por
+      // fila del render; para el contrato no importa la fila, se aplanan todos los campos.
+      const fields = db.getPacket().flat().map((f) => ({ label: f.label, start: f.start, end: f.end }));
+      return { kind: 'packet', fields };
+    },
+    'radar': (db) => {
+      const axes = db.getAxes(); // [{name, label}], en el mismo orden que los "entries" de cada curve
+      const curves = db.getCurves().map((c) => {
+        const values = {};
+        axes.forEach((a, i) => { values[a.label] = c.entries[i]; });
+        return { label: c.label, values };
+      });
+      return { kind: 'radar', axes: axes.map((a) => a.label), curves };
     },
     'sequence': (db) => {
       const actors = db.getActors();
@@ -444,6 +469,58 @@ function validateXychart(extracted, contract) {
   return violations;
 }
 
+function validatePacket(extracted, contract) {
+  const violations = [];
+  const { fields } = extracted;
+
+  if (typeof contract.min_fields === 'number' && fields.length < contract.min_fields) {
+    violations.push(`min_fields ${contract.min_fields}, encontrado ${fields.length}`);
+  }
+  if (typeof contract.max_fields === 'number' && fields.length > contract.max_fields) {
+    violations.push(`max_fields ${contract.max_fields}, encontrado ${fields.length}`);
+  }
+
+  for (const req of contract.required_fields || []) {
+    const found = fields.find((f) => f.label === req.label);
+    if (!found) {
+      violations.push(`falta field requerido '${req.label}'`);
+      continue;
+    }
+    if (typeof req.start === 'number' && found.start !== req.start) {
+      violations.push(`field '${req.label}' esperaba start ${req.start}, encontrado ${found.start}`);
+    }
+    if (typeof req.end === 'number' && found.end !== req.end) {
+      violations.push(`field '${req.label}' esperaba end ${req.end}, encontrado ${found.end}`);
+    }
+  }
+
+  return violations;
+}
+
+function validateRadar(extracted, contract) {
+  const violations = [];
+  const { axes, curves } = extracted;
+
+  for (const a of contract.required_axes || []) {
+    if (!axes.includes(a)) violations.push(`falta eje requerido '${a}'`);
+  }
+
+  for (const req of contract.required_curves || []) {
+    const found = curves.find((c) => c.label === req.label);
+    if (!found) {
+      violations.push(`falta curva requerida '${req.label}'`);
+      continue;
+    }
+    for (const [axis, value] of Object.entries(req.values || {})) {
+      if (found.values[axis] !== value) {
+        violations.push(`curva '${req.label}', eje '${axis}' esperaba ${value}, encontrado ${found.values[axis]}`);
+      }
+    }
+  }
+
+  return violations;
+}
+
 function validate(extracted, contract) {
   if (extracted.syntaxError) {
     return [`sintaxis invalida: ${extracted.syntaxError}`];
@@ -466,6 +543,8 @@ function validate(extracted, contract) {
   if (extracted.kind === 'quadrant') return [...violations, ...validateQuadrant(extracted, contract)];
   if (extracted.kind === 'timeline') return [...violations, ...validateTimeline(extracted, contract)];
   if (extracted.kind === 'xychart') return [...violations, ...validateXychart(extracted, contract)];
+  if (extracted.kind === 'packet') return [...violations, ...validatePacket(extracted, contract)];
+  if (extracted.kind === 'radar') return [...violations, ...validateRadar(extracted, contract)];
   return [...violations, ...validateGraph(extracted, contract)];
 }
 

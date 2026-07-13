@@ -1,0 +1,16 @@
+diagram_type: kanban
+
+min_nodes: 5
+max_nodes: 10
+
+required_nodes:
+  - id: todo
+    label: Todo
+  - id: doing
+  - id: done
+
+required_edges:
+  - from: todo
+    to: task1
+  - from: doing
+    to: task3

@@ -1,0 +1,10 @@
+diagram_type: packet
+
+min_fields: 2
+max_fields: 5
+
+required_fields:
+  - label: "Source Port"
+    start: 0
+    end: 15
+  - label: "Sequence Number"

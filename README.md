@@ -47,7 +47,7 @@ node src/gate.js examples/ok.mmd examples/ok.contract.yaml
 es un grafo o uno de los tres tipos "planos" (gantt/pie/journey). `semantic_checks` aplica a
 cualquier tipo por igual. Un contrato sin reglas estructurales solo valida sintaxis + tipo.
 
-### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph, requirementDiagram, C4Context, sankey, block)
+### Diagramas de grafo (flowchart, sequenceDiagram, classDiagram, stateDiagram, erDiagram, mindmap, gitGraph, requirementDiagram, C4Context, sankey, block, kanban)
 
 ```yaml
 diagram_type: flowchart      # tipo esperado (ver "Tipos soportados" abajo)
@@ -171,6 +171,35 @@ required_plots:               # opcional, matchea por type ('bar' o 'line')
         value: 500            # opcional: si se omite, solo se exige que exista un punto para esa categoria
 ```
 
+### packet
+
+```yaml
+diagram_type: packet
+
+min_fields: 2                 # opcional
+max_fields: 5                 # opcional
+
+required_fields:              # opcional, matchea por label exacto del field
+  - label: "Source Port"
+    start: 0                  # opcional
+    end: 15                   # opcional
+```
+
+### radar
+
+```yaml
+diagram_type: radar
+
+required_axes:                # opcional
+  - Ataque
+  - Defensa
+
+required_curves:              # opcional, matchea por label exacto de la curva
+  - label: "Jugador 1"
+    values:                   # opcional: mapa eje -> valor esperado, solo se chequean los ejes listados
+      Ataque: 85
+```
+
 ## Tipos de diagrama soportados
 
 | `diagram_type` en el contrato | Tipo interno de Mermaid |
@@ -192,9 +221,12 @@ required_plots:               # opcional, matchea por type ('bar' o 'line')
 | `block` | `block` |
 | `timeline` | `timeline` |
 | `xychart` | `xychart` |
+| `kanban` | `kanban` |
+| `packet` | `packet` |
+| `radar` | `radar` |
 
-Cualquier otro tipo (`kanban`, `packet`, `radar`, etc.) todavía no tiene extractor: el gate falla
-con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
+Cualquier otro tipo todavía no tiene extractor: el gate falla con
+`tipo de diagrama '<tipo>' aun no soportado por el gate`.
 
 ### Notas por tipo (comportamiento real verificado, no documentación oficial de Mermaid)
 
@@ -237,6 +269,15 @@ con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
 - **xychart**: cada serie (`bar`/`line`) se identifica por su `type`, no por un id — si un contrato
   necesitara dos series `bar` distinguibles, `required_plots` no alcanza (matchea la primera con
   ese type).
+- **kanban**: `getData()` devuelve una lista plana de nodos (secciones + tareas) con `parentId`,
+  no un árbol ni edges ya armados — el extractor reconstruye el edge `sección -> tarea` a partir
+  de ese `parentId`.
+- **packet**: `getPacket()` agrupa los campos en "filas" (arrays anidados) según cuántos bits
+  entran por fila en el render; el extractor aplana todas las filas, porque para el contrato la
+  fila no importa, solo el campo.
+- **radar**: `getCurves()` devuelve los valores como array posicional (`entries: [85, 60, 90]`),
+  que corresponde por índice al array de `getAxes()`, no por nombre — el extractor arma el mapa
+  eje→valor cruzando ambos arrays por posición.
 
 ### Agregar un tipo nuevo
 
@@ -328,6 +369,9 @@ node src/gate.js examples/quadrant-ok.mmd examples/quadrant-ok.contract.yaml   #
 node src/gate.js examples/block-ok.mmd examples/block-ok.contract.yaml         # block, PASS
 node src/gate.js examples/timeline-ok.mmd examples/timeline-ok.contract.yaml   # timeline, PASS
 node src/gate.js examples/xychart-ok.mmd examples/xychart-ok.contract.yaml     # xychart, PASS
+node src/gate.js examples/kanban-ok.mmd examples/kanban-ok.contract.yaml       # kanban, PASS
+node src/gate.js examples/packet-ok.mmd examples/packet-ok.contract.yaml       # packet, PASS
+node src/gate.js examples/radar-ok.mmd examples/radar-ok.contract.yaml         # radar, PASS
 node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml examples/semantic-verdicts-pass.json  # PASS
 ```
 
