@@ -1,0 +1,20 @@
+# Nota: si no le das id explicito a un merge, mermaid le genera uno con hash aleatorio
+# (no deterministico entre corridas), asi que para poder declararlo en required_nodes/edges
+# hay que forzarlo con 'merge <branch> id: "..."'.
+diagram_type: gitGraph
+
+min_nodes: 3
+max_nodes: 6
+
+required_nodes:
+  - id: init
+  - id: feature-a
+  - id: merge-1
+
+required_edges:
+  - from: init
+    to: feature-a
+  - from: init
+    to: merge-1
+  - from: feature-a
+    to: merge-1

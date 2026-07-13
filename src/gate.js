@@ -53,6 +53,35 @@ const EXTRACTORS_SOURCE = `
       }));
       return { nodes, edges };
     },
+    'mindmap': (db) => {
+      const root = db.getMindmap();
+      const nodes = [];
+      const edges = [];
+      // getMindmap() devuelve un arbol (root con children anidados), no una lista plana:
+      // hay que recorrerlo y aplanarlo al mismo shape {nodes, edges} que usan los demas tipos.
+      // OJO: nodeId sale del texto del nodo (descr) sanitizado, asi que dos nodos con el mismo
+      // texto en ramas distintas colisionan en el mismo id.
+      function walk(node, parent) {
+        nodes.push({ id: node.nodeId, label: node.descr });
+        if (parent) edges.push({ from: parent.nodeId, to: node.nodeId, label: null });
+        (node.children || []).forEach((c) => walk(c, node));
+      }
+      walk(root, null);
+      return { nodes, edges };
+    },
+    'gitGraph': (db) => {
+      const commits = db.getCommits();
+      const nodes = Array.from(commits.entries()).map(([id, c]) => ({ id, label: c.message || id }));
+      // cada commit sabe sus padres (1 en un commit normal, 2 en un merge): el edge va
+      // padre -> commit, no al reves.
+      const edges = [];
+      for (const [id, c] of commits.entries()) {
+        for (const parentId of c.parents || []) {
+          edges.push({ from: parentId, to: id, label: null });
+        }
+      }
+      return { nodes, edges };
+    },
     'sequence': (db) => {
       const actors = db.getActors();
       const nodes = Array.from(actors.entries()).map(([id, a]) => ({ id, label: a.description }));

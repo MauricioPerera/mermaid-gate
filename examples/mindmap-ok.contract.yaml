@@ -1,0 +1,19 @@
+# Nota: el id de cada nodo sale del texto (nodeId), no hay ids explicitos como en flowchart.
+diagram_type: mindmap
+
+min_nodes: 5
+max_nodes: 10
+
+required_nodes:
+  - id: root
+    label: Proyecto
+  - id: Frontend
+  - id: Backend
+
+required_edges:
+  - from: root
+    to: Frontend
+  - from: Frontend
+    to: React
+  - from: root
+    to: Backend

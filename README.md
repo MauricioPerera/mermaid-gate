@@ -75,9 +75,13 @@ solo valida sintaxis + tipo de diagrama.
 | `classDiagram` | `class` |
 | `stateDiagram` / `stateDiagram-v2` | `stateDiagram` |
 | `erDiagram` | `er` |
+| `mindmap` | `mindmap` |
+| `gitGraph` | `gitGraph` |
 
-Cualquier otro tipo (`gantt`, `pie`, `mindmap`, `gitGraph`, etc.) todavía no tiene extractor: el
-gate falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
+Cualquier otro tipo (`gantt`, `pie`, `journey`, etc.) todavía no tiene extractor: el gate falla con
+`tipo de diagrama '<tipo>' aun no soportado por el gate`. Esos tres en particular no encajan en el
+esquema nodos/edges tal cual está (son barras/porcentajes/tareas con fechas, no grafos), así que
+necesitan una extensión del contrato antes de poder agregarse.
 
 ### Notas por tipo (comportamiento real verificado, no documentación oficial de Mermaid)
 
@@ -87,6 +91,14 @@ gate falla con `tipo de diagrama '<tipo>' aun no soportado por el gate`.
   activate/deactivate, no solo mensajes reales; el extractor las filtra.
 - **erDiagram**: las relaciones referencian entidades por su id interno (`entity-X-N`), no por el
   nombre visible; el extractor resuelve ese lookup.
+- **mindmap**: `getMindmap()` devuelve un árbol anidado (root con `children`), no una lista plana;
+  el extractor lo recorre y aplana. El `id` de cada nodo sale del texto (`nodeId`), no hay ids
+  explícitos como en flowchart — dos nodos con el mismo texto en ramas distintas colisionan en el
+  mismo id.
+- **gitGraph**: cada commit trae su lista de `parents` (1 en un commit normal, 2 en un merge); el
+  extractor genera un edge `padre -> commit` por cada parent. Un `merge` sin id explícito
+  (`merge <branch> id: "..."`) genera un id con hash aleatorio, distinto en cada parseo — para que
+  el contrato sea reproducible hay que forzar el id del merge a mano.
 
 ### Agregar un tipo nuevo
 
@@ -159,6 +171,8 @@ node src/gate.js examples/sequence-ok.mmd examples/sequence-ok.contract.yaml   #
 node src/gate.js examples/class-ok.mmd examples/class-ok.contract.yaml         # classDiagram, PASS
 node src/gate.js examples/state-ok.mmd examples/state-ok.contract.yaml         # stateDiagram, PASS
 node src/gate.js examples/er-ok.mmd examples/er-ok.contract.yaml               # erDiagram, PASS
+node src/gate.js examples/mindmap-ok.mmd examples/mindmap-ok.contract.yaml     # mindmap, PASS
+node src/gate.js examples/gitgraph-ok.mmd examples/gitgraph-ok.contract.yaml   # gitGraph, PASS
 node src/gate.js examples/semantic-pass.mmd examples/semantic-ok.contract.yaml examples/semantic-verdicts-pass.json  # PASS
 ```
 
